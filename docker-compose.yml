@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  ocr-fiscal-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ocr-fiscal-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      # Variables para OpenCV sin GUI
+      - QT_X11_NO_MITSHM=1
+      - MPLBACKEND=Agg
+    volumes:
+      # Volumen para cache de modelos OCR
+      - ocr_models:/home/appuser/.EasyOCR
+      # Volumen para logs
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+    # Configuración de seguridad
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+  # Servicio nginx para balanceador de carga (opcional)
+  nginx:
+    image: nginx:alpine
+    container_name: ocr-fiscal-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - ocr-fiscal-api
+    restart: unless-stopped
+    profiles: ["production"]
+
+volumes:
+  ocr_models:
+    driver: local
+
+networks:
+  default:
+    name: ocr-fiscal-network
+    driver: bridge

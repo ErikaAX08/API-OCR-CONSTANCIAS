@@ -1,0 +1,4 @@
+*.pdf
+logs/*
+.env
+.DS_Store
